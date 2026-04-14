@@ -25,23 +25,42 @@ The frontend is built with Next.js App Router and React. The backend uses simple
 ### User Flow
 
 ```mermaid
-flowchart LR
-    A[User Inputs Idea] --> B[Generate Hooks<br/>AI Hook Service]
-    B --> C[User Selects Hook]
-    C --> D[Generate Slides<br/>AI + Story Engine]
-    D --> E[Enhance Slides<br/>Images + Theme + Brand Layer]
-    E --> F[Edit and Customize]
-    F --> G[Export Assets<br/>ZIP today, PDF next]
+flowchart TB
+    subgraph S1[Ideation]
+        A[User enters idea]
+        B[Generate hooks]
+        C[Select hook]
+        A --> B --> C
+    end
+
+    subgraph S2[Content Generation]
+        D[Generate slides]
+        E[Apply visuals and theme]
+        D --> E
+    end
+
+    subgraph S3[Refinement]
+        F[Edit and customize]
+    end
+
+    subgraph S4[Output]
+        G[Export assets]
+    end
+
+    C --> D
+    E --> F --> G
 
     classDef input fill:#fff7ed,stroke:#f97316,color:#7c2d12,stroke-width:2px;
     classDef ai fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
     classDef user fill:#fdf2f8,stroke:#ec4899,color:#831843,stroke-width:2px;
     classDef output fill:#ecfdf5,stroke:#10b981,color:#064e3b,stroke-width:2px;
+    classDef group fill:#ffffff,stroke:#cbd5e1,color:#0f172a,stroke-width:1px;
 
     class A input;
     class B,D,E ai;
     class C,F user;
     class G output;
+    class S1,S2,S3,S4 group;
 ```
 
 ### System View
@@ -49,25 +68,56 @@ flowchart LR
 ```mermaid
 flowchart TB
     U[User]
-    UI[Next.js Frontend<br/>Studio Workspace]
-    H[/api/hooks<br/>Hook Generation]
-    G[/api/generate<br/>Slide Generation]
-    R[/api/regenerate<br/>Single Slide Refresh]
-    I[/api/slide-image<br/>Image Fetch + Fallback]
-    LLM[Groq LLM API]
-    IMG[Image Provider]
-    EXP[Client-side Export<br/>html2canvas + JSZip]
+
+    subgraph F1[Frontend Layer]
+        UI[Studio workspace UI]
+        ED[Editing and preview controls]
+        UI --> ED
+    end
+
+    subgraph F2[Application API Layer]
+        H[Hooks API]
+        G[Generate API]
+        R[Regenerate API]
+        I[Slide image API]
+    end
+
+    subgraph F3[External Services]
+        LLM[Groq LLM API]
+        IMG[Image provider]
+    end
+
+    subgraph F4[Export Layer]
+        EXP[Client-side export]
+        ZIP[ZIP bundle output]
+        EXP --> ZIP
+    end
 
     U --> UI
-    UI --> H
-    UI --> G
-    UI --> R
-    UI --> I
-    UI --> EXP
+    ED --> H
+    ED --> G
+    ED --> R
+    ED --> I
+    ED --> EXP
+
     H --> LLM
     G --> LLM
     R --> LLM
     I --> IMG
+
+    classDef actor fill:#fff7ed,stroke:#f97316,color:#7c2d12,stroke-width:2px;
+    classDef frontend fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
+    classDef api fill:#f8fafc,stroke:#64748b,color:#0f172a,stroke-width:1.5px;
+    classDef external fill:#fdf2f8,stroke:#ec4899,color:#831843,stroke-width:2px;
+    classDef output fill:#ecfdf5,stroke:#10b981,color:#064e3b,stroke-width:2px;
+    classDef group fill:#ffffff,stroke:#cbd5e1,color:#0f172a,stroke-width:1px;
+
+    class U actor;
+    class UI,ED frontend;
+    class H,G,R,I api;
+    class LLM,IMG external;
+    class EXP,ZIP output;
+    class F1,F2,F3,F4 group;
 ```
 
 ### HLD Notes
