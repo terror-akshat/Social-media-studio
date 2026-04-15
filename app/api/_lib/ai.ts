@@ -119,6 +119,7 @@ export const validateSlides = (value: unknown, expectedCount: number) => {
     return null;
   }
 
+
   const slides = value
     .map((slide, index) => {
       const normalized = slide && typeof slide === "object" ? normalizeSlide(slide as SlidePayload) : null;
