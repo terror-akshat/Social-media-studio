@@ -102,8 +102,8 @@ const normalizeSlide = (slide: SlidePayload) => {
     return null;
   }
 
-  const title = hasTitle ? slide.title.trim() : "";
-  const content = hasContent ? slide.content.trim() : "";
+  const title = hasTitle ? (slide.title as string).trim() : "";
+  const content = hasContent ? (slide.content as string).trim() : "";
 
   // Require at least one non-empty field
   if (!title && !content) {
