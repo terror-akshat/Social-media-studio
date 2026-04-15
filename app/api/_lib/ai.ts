@@ -90,27 +90,51 @@ export const validateHooks = (value: unknown) => {
 };
 
 const normalizeSlide = (slide: SlidePayload) => {
-  if (typeof slide.title !== "string" || typeof slide.content !== "string") {
+  if (!slide || typeof slide !== "object") {
     return null;
   }
 
-  const title = slide.title.trim();
-  const content = slide.content.trim();
+  // Be more lenient - accept if at least one field is present and is a string
+  const hasTitle = typeof slide.title === "string";
+  const hasContent = typeof slide.content === "string";
 
-  if (!title && !content) return null;
+  if (!hasTitle && !hasContent) {
+    return null;
+  }
+
+  const title = hasTitle ? slide.title.trim() : "";
+  const content = hasContent ? slide.content.trim() : "";
+
+  // Require at least one non-empty field
+  if (!title && !content) {
+    return null;
+  }
 
   return { title, content };
 };
 
 export const validateSlides = (value: unknown, expectedCount: number) => {
-  const rawSlides = Array.isArray(value) ? value : [value];
-  const slides = rawSlides
-    .map((slide) =>
-      slide && typeof slide === "object" ? normalizeSlide(slide as SlidePayload) : null,
-    )
+  if (!Array.isArray(value)) {
+    console.warn("[validateSlides] Value is not an array:", typeof value);
+    return null;
+  }
+
+  const slides = value
+    .map((slide, index) => {
+      const normalized = slide && typeof slide === "object" ? normalizeSlide(slide as SlidePayload) : null;
+      if (!normalized) {
+        console.warn(`[validateSlides] Slide ${index} failed normalization:`, slide);
+      }
+      return normalized;
+    })
     .filter(Boolean) as Array<{ title: string; content: string }>;
 
-  if (!slides.length) return null;
+  if (!slides.length) {
+    console.warn("[validateSlides] No valid slides after normalization");
+    return null;
+  }
+
+ 
 
   return slides.slice(0, expectedCount);
 };

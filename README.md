@@ -2,6 +2,25 @@
 
 Social Media Studio is a Next.js app for turning a rough content idea into ready-to-post social media creatives. I picked the problem of "content creation takes too long for non-designers" and built a tool that helps users go from topic to editable carousel/post/story slides with AI-assisted hooks, copy, styling controls, and export.
 
+## Submission Summary
+
+- **Problem Chosen:** Social Media Studio  
+- **Live URL:** https://social-media-studio-murex.vercel.app/  
+- **Video Walkthrough:** https://loom.com/your-video  
+
+---
+
+## How to Use
+
+1. Enter a topic or idea  
+2. Generate hook options  
+3. Select a format (`carousel`, `post`, or `story`)  
+4. Generate slides  
+5. Edit and customize content (theme, font, alignment, spacing)  
+6. Preview the final design  
+7. Export slides as PNG images (ZIP download)
+
+
 ## What I Built
 
 The app lets a user:
@@ -125,7 +144,6 @@ flowchart TB
 - `Styling layer`: each slide uses theme-driven gradients, overlay treatments, font choices, alignment, and spacing controls directly in the UI.
 - `Editing layer`: the user can refine titles, body copy, theme, font, alignment, spacing, and preview mode directly in the UI.
 - `Export layer`: slides are rendered into simplified client-side export cards and bundled into downloadable image assets.
-
 
 ## Problem Chosen
 

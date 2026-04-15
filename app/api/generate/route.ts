@@ -19,8 +19,14 @@ export async function POST(req: Request) {
       layoutTemplate = "balanced",
     } = await req.json();
 
-    const slideCount = format === "post" ? 1 : format === "story" ? 3 : 5;
-    const formatName = format === "post" ? "post" : format === "story" ? "story" : "carousel";
+    const slideCount =
+      format === "post" ? 1
+      : format === "story" ? 3
+      : 5;
+    const formatName =
+      format === "post" ? "post"
+      : format === "story" ? "story"
+      : "carousel";
 
     const prompt = `
 You are a social media content expert.
@@ -52,7 +58,7 @@ Rules:
 
 Return JSON array with ${slideCount} slide${slideCount === 1 ? "" : "s"}:
 [
- ${Array(slideCount).fill('{ "title": "", "content": "" }').join(',\n ')}
+ ${Array(slideCount).fill('{ "title": "", "content": "" }').join(",\n ")}
 ]
 `;
 
@@ -94,11 +100,23 @@ Return JSON array with ${slideCount} slide${slideCount === 1 ? "" : "s"}:
     }
 
     const parsed = parseAIJSON(text);
+
     const slides = validateSlides(parsed, slideCount);
 
     if (!slides || slides.length !== slideCount) {
+      console.error(
+        "[generate] Validation failed. Parsed:",
+        parsed,
+        "Slides:",
+        slides,
+      );
       return Response.json(
-        { error: `Groq returned invalid slide data for ${formatName}` },
+        {
+          error: `Groq returned invalid slide data for ${formatName}`,
+          parsed,
+          slideCount,
+          receivedSlides: slides?.length || 0,
+        },
         { status: 502 },
       );
     }
