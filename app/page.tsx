@@ -6,14 +6,14 @@ import JSZip from "jszip";
 type Slide = {
   title: string;
   content: string;
-  imageUrl?: string;
-  imagePrompt?: string;
 };
+
+type ThemeName = "purple" | "blue" | "green" | "orange" | "dark" | "custom";
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const cleanSlideText = (text: string, idea: string, index: number) => {
+const cleanSlideText = (text: string, idea: string) => {
   let cleaned = text?.trim() || "";
 
   if (!cleaned) return cleaned;
@@ -21,18 +21,62 @@ const cleanSlideText = (text: string, idea: string, index: number) => {
   cleaned = cleaned.replace(/^[\s\n]*Slide\s*\d+\s*[:.\-–—]*\s*/i, "");
 
   if (idea) {
-    const ideaPrefix = new RegExp(`^\\s*${escapeRegExp(idea)}[\\s:.\-–—]*`, "i");
+    const ideaPrefix = new RegExp(
+      `^\\s*${escapeRegExp(idea)}[\\s:.\-–—]*`,
+      "i",
+    );
     cleaned = cleaned.replace(ideaPrefix, "");
   }
 
   return cleaned.trim();
 };
 
-const sanitizeSlide = (slide: Slide, idea: string, index: number) => ({
+const sanitizeSlide = (slide: Slide, idea: string) => ({
   ...slide,
-  title: cleanSlideText(slide.title, idea, index),
-  content: cleanSlideText(slide.content, idea, index),
+  title: cleanSlideText(slide.title, idea),
+  content: cleanSlideText(slide.content, idea),
 });
+
+const parseAPIError = async (response: Response) => {
+  try {
+    const data = await response.json();
+    if (typeof data?.error === "string" && data.error.trim()) {
+      return data.error;
+    }
+  } catch {
+    // Ignore JSON parsing errors and fall back to a generic message.
+  }
+
+  return `Request failed with status ${response.status}`;
+};
+
+const hexToRgb = (value: string) => {
+  const normalized = value.replace("#", "");
+  const hex =
+    normalized.length === 3 ?
+      normalized
+        .split("")
+        .map((char) => char + char)
+        .join("")
+    : normalized;
+
+  const parsed = Number.parseInt(hex, 16);
+
+  if (Number.isNaN(parsed) || hex.length !== 6) {
+    return { r: 99, g: 102, b: 241 };
+  }
+
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255,
+  };
+};
+
+const toRgba = (value: string, alpha: number) => {
+  const { r, g, b } = hexToRgb(value);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 export default function Home() {
   const [idea, setIdea] = useState<string>("");
@@ -43,7 +87,7 @@ export default function Home() {
   const [format, setFormat] = useState<"carousel" | "post" | "story">(
     "carousel",
   );
-  const [theme, setTheme] = useState("purple");
+  const [theme, setTheme] = useState<ThemeName>("purple");
   const [customColor, setCustomColor] = useState("#6366f1");
   const [font, setFont] = useState("sans");
   const [alignment, setAlignment] = useState("center");
@@ -51,53 +95,114 @@ export default function Home() {
   const [previewMode, setPreviewMode] = useState(false);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const buildImagePrompt = (slide: Slide, index: number) => {
-    const formatContext =
-      format === "story" ? "vertical Instagram story visual"
-      : format === "post" ? "single Instagram post visual"
-      : "Instagram carousel slide visual";
+  const getThemeStyles = () => {
+    if (theme === "purple") {
+      return {
+        background:
+          "linear-gradient(135deg, #667eea 0%, #764ba2 40%, #ff758c 100%)",
+        overlay:
+          "radial-gradient(circle at top, rgba(255,255,255,0.25), transparent 60%)",
+      };
+    }
 
-    return `Create a modern editorial image for slide ${index + 1} of a ${formatContext} on the theme of ${idea}. Evoke the tone of ${slide.title} without any readable text, labels, or title overlays. Modern composition, premium lighting, clean typography space, social-media-ready creative, thumb-stopping image.`;
-  };
+    if (theme === "blue") {
+      return {
+        background:
+          "linear-gradient(135deg, #00c6ff 0%, #0072ff 40%, #3a7bd5 100%)",
+        overlay:
+          "radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent 60%)",
+      };
+    }
 
-  const decorateSlideWithImage = (slide: Slide, index: number): Slide => {
-    const imagePrompt = buildImagePrompt(slide, index);
+    if (theme === "green") {
+      return {
+        background:
+          "linear-gradient(135deg, #11998e 0%, #38ef7d 50%, #00ff87 100%)",
+        overlay:
+          "radial-gradient(circle at bottom, rgba(255,255,255,0.2), transparent 60%)",
+      };
+    }
+
+    if (theme === "orange") {
+      return {
+        background:
+          "linear-gradient(135deg, #ff8008 0%, #ffc837 50%, #ff512f 100%)",
+        overlay:
+          "radial-gradient(circle at center, rgba(255,255,255,0.15), transparent 60%)",
+      };
+    }
+
+    if (theme === "dark") {
+      return {
+        background:
+          "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+        overlay:
+          "radial-gradient(circle at top, rgba(255,255,255,0.1), transparent 60%)",
+      };
+    }
+
+    if (theme === "custom") {
+      return {
+        background: `linear-gradient(135deg, ${customColor}, #000000)`,
+        overlay:
+          "radial-gradient(circle at top left, rgba(255,255,255,0.2), transparent 60%)",
+      };
+    }
 
     return {
-      ...slide,
-      imagePrompt,
-      imageUrl: `/api/slide-image?prompt=${encodeURIComponent(imagePrompt)}`,
+      background:
+        "linear-gradient(135deg, #667eea 0%, #764ba2 40%, #ff758c 100%)",
+      overlay:
+        "radial-gradient(circle at top, rgba(255,255,255,0.25), transparent 60%)",
     };
   };
 
-  const getExportBackground = () => {
-    if (theme === "custom") return customColor;
-    if (theme === "blue") {
-      return "linear-gradient(135deg, rgb(96, 165, 250), rgb(29, 78, 216))";
-    }
-    if (theme === "green") {
-      return "linear-gradient(135deg, rgb(74, 222, 128), rgb(5, 150, 105))";
-    }
-    if (theme === "orange") {
-      return "linear-gradient(135deg, rgb(251, 146, 60), rgb(239, 68, 68))";
-    }
-    if (theme === "dark") return "rgb(17, 24, 39)";
+  const createExportCard = (slide: Slide) => {
+    const div = document.createElement("div");
 
-    return "linear-gradient(135deg, rgb(99, 102, 241), rgb(168, 85, 247) 55%, rgb(236, 72, 153))";
+    div.style.width = "320px";
+    div.style.height = "320px";
+    div.style.display = "flex";
+    div.style.flexDirection = "column";
+    div.style.justifyContent = "center";
+    div.style.alignItems = "center";
+    div.style.padding = "20px";
+    div.style.background = "#4f46e5";
+    div.style.color = "#ffffff";
+    div.style.fontFamily = "Arial, sans-serif";
+    div.style.textAlign = "center";
+    div.style.borderRadius = "20px";
+
+    div.innerHTML = `
+    <h2 style="font-size:20px; font-weight:bold; margin-bottom:10px;">
+      ${slide.title}
+    </h2>
+    <p style="font-size:14px;">
+      ${slide.content}
+    </p>
+  `;
+
+    return div;
   };
-
   const downloadZIP = async () => {
+    if (slides.length === 0) {
+      alert("Generate slides before exporting.");
+      return;
+    }
+
     const zip = new JSZip();
 
     for (let i = 0; i < slideRefs.current.length; i++) {
       const slide = slideRefs.current[i];
       if (!slide) continue;
 
-      const originalBg = slide.style.background;
-      slide.style.background = getExportBackground();
+      const exportNode = createExportCard(slides[i]);
 
-      const canvas = await html2canvas(slide);
-      slide.style.background = originalBg;
+      document.body.appendChild(exportNode);
+
+      const canvas = await html2canvas(exportNode);
+
+      document.body.removeChild(exportNode);
 
       const imgData = canvas.toDataURL("image/png");
       const imgBlob = await (await fetch(imgData)).blob();
@@ -108,11 +213,14 @@ export default function Home() {
     const content = await zip.generateAsync({ type: "blob" });
 
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(content);
+    const objectUrl = URL.createObjectURL(content);
+
+    link.href = objectUrl;
     link.download = "carousel-slides.zip";
     link.click();
-  };
 
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  };
   const generateHooks = async () => {
     if (!idea) {
       alert("Enter idea first");
@@ -125,6 +233,10 @@ export default function Home() {
         body: JSON.stringify({ idea }),
       });
 
+      if (!res.ok) {
+        throw new Error(await parseAPIError(res));
+      }
+
       const data = await res.json();
       const cleaned = data.result
         ?.replace(/```json/g, "")
@@ -135,6 +247,7 @@ export default function Home() {
       setHooks(parsed);
     } catch (err) {
       console.error("Hook generation failed", err);
+      alert(err instanceof Error ? err.message : "Hook generation failed");
     }
   };
 
@@ -149,6 +262,10 @@ export default function Home() {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error(await parseAPIError(res));
+      }
+
       const data = await res.json();
       const cleaned = data.result
         ?.replace(/```json/g, "")
@@ -159,10 +276,11 @@ export default function Home() {
       if (!parsed) return;
 
       const newSlides = [...slides];
-      newSlides[index] = decorateSlideWithImage(sanitizeSlide(parsed, idea, index), index);
+      newSlides[index] = sanitizeSlide(parsed, idea);
       setSlides(newSlides);
     } catch (err) {
       console.error("Regenerate failed", err);
+      alert(err instanceof Error ? err.message : "Regenerate failed");
     }
   };
 
@@ -256,6 +374,10 @@ export default function Home() {
         body: JSON.stringify({ idea, format, hook: selectedHook }),
       });
 
+      if (!res.ok) {
+        throw new Error(await parseAPIError(res));
+      }
+
       const data = await res.json();
       console.log("RAW AI RESPONSE:", data.result);
 
@@ -265,7 +387,12 @@ export default function Home() {
         const result = parseAIJSON(data.result);
         if (Array.isArray(result)) {
           parsed = result;
-        } else if (result && typeof result === 'object' && 'title' in result && 'content' in result) {
+        } else if (
+          result &&
+          typeof result === "object" &&
+          "title" in result &&
+          "content" in result
+        ) {
           // Single slide object, wrap in array
           parsed = [result];
         } else {
@@ -278,22 +405,14 @@ export default function Home() {
       setSlides(
         parsed
           .slice(0, getExpectedSlideCount())
-          .map((slide, index) => decorateSlideWithImage(sanitizeSlide(slide, idea, index), index)),
+          .map((slide) => sanitizeSlide(slide, idea)),
       );
     } catch (err) {
       console.error(err);
+      alert(err instanceof Error ? err.message : "Slide generation failed");
     }
 
     setLoading(false);
-  };
-
-  const themes = {
-    purple: "bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500",
-    blue: "bg-gradient-to-br from-blue-400 to-blue-700",
-    green: "bg-gradient-to-br from-green-400 to-emerald-600",
-    orange: "bg-gradient-to-br from-orange-400 to-red-500",
-    dark: "bg-gray-900",
-    custom: "",
   };
 
   const fontClasses = {
@@ -309,8 +428,18 @@ export default function Home() {
     left: "text-left items-start",
   };
 
+  const themeStyles = getThemeStyles();
+  const themeOptions: ThemeName[] = [
+    "purple",
+    "blue",
+    "green",
+    "orange",
+    "dark",
+    "custom",
+  ];
+
   return (
-    <main className="relative h-screen overflow-hidden bg-[linear-gradient(135deg,_#fff7ed_0%,_#fdf2f8_24%,_#eff6ff_58%,_#eef2ff_100%)] text-slate-900">
+    <main className="relative min-h-screen overflow-y-auto bg-[linear-gradient(135deg,_#fff7ed_0%,_#fdf2f8_24%,_#eff6ff_58%,_#eef2ff_100%)] text-slate-900">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(249,115,22,0.30)_0%,_transparent_24%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.24)_0%,_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(236,72,153,0.18)_0%,_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.20)_0%,_transparent_28%)]" />
       <div className="pointer-events-none absolute left-[8%] top-[10%] h-56 w-56 rounded-full bg-orange-300/30 blur-3xl" />
       <div className="pointer-events-none absolute right-[10%] top-[14%] h-64 w-64 rounded-full bg-sky-300/30 blur-3xl" />
@@ -347,7 +476,7 @@ export default function Home() {
       </div>
 
       <div className="mx-auto grid h-[calc(100vh-93px)] max-w-[1800px] gap-6 overflow-hidden px-6 py-6 lg:grid-cols-[340px_minmax(0,1fr)_320px]">
-        <aside className="h-full overflow-y-auto rounded-[28px] border border-white/30 bg-white/20 p-6 shadow-xl backdrop-blur-lg">
+        <aside className="h-full overflow-y-auto rounded-[28px] border border-white/30 bg-white/20 px-6 pt-6 pb-10 shadow-xl backdrop-blur-lg">
           <div className="mt-6 rounded-[24px] border border-orange-100 bg-[linear-gradient(180deg,_rgba(255,255,255,0.95)_0%,_rgba(255,247,237,0.92)_100%)] p-4 shadow-sm">
             <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
               Format
@@ -481,7 +610,7 @@ export default function Home() {
           </div>
 
           <div className="flex-1 overflow-y-auto pr-2">
-            {slides.length === 0 ? (
+            {slides.length === 0 ?
               <div className="flex h-full items-center justify-center">
                 <div className="w-full max-w-2xl rounded-[36px] border border-white/70 bg-[linear-gradient(135deg,_rgba(255,255,255,0.92)_0%,_rgba(238,242,255,0.92)_45%,_rgba(254,242,242,0.92)_100%)] p-10 text-center shadow-[0_28px_60px_rgba(15,23,42,0.10)]">
                   <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,_#7c3aed,_#ec4899)] text-3xl text-white shadow-[0_16px_40px_rgba(168,85,247,0.35)]">
@@ -511,157 +640,145 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="mx-auto flex max-w-3xl flex-col gap-8">
-                {previewMode
-                  ? slides.map((slide, index) => (
-                      <div
-                        key={index}
-                        className="mx-auto w-full max-w-[420px] rounded-[40px] border border-white/40 bg-white/35 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl"
-                      >
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,_#fb7185,_#8b5cf6,_#3b82f6)] text-sm font-bold text-white">
-                          SM
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            socialmediastudio
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Slide {index + 1} preview
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-slate-400">•••</span>
-                    </div>
-
+            : <div className="mx-auto flex max-w-3xl flex-col gap-8">
+                {previewMode ?
+                  slides.map((slide, index) => (
                     <div
-                      className={`
+                      key={index}
+                      className="mx-auto w-full max-w-[420px] rounded-[40px] border border-white/40 bg-white/35 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+                    >
+                      <div className="mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,_#fb7185,_#8b5cf6,_#3b82f6)] text-sm font-bold text-white">
+                            SM
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              socialmediastudio
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Slide {index + 1} preview
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-slate-400">•••</span>
+                      </div>
+
+                      <div
+                        ref={(el) => {
+                          slideRefs.current[index] = el;
+                        }}
+                        className={`
                         ${
                           format === "carousel" ? "w-full aspect-square"
                           : format === "story" ?
                             "w-full max-w-[320px] aspect-[9/16] mx-auto"
                           : "w-full aspect-square"
                         }
-                        ${themes[theme as keyof typeof themes]}
                         ${fontClasses[font as keyof typeof fontClasses]}
                         ${alignmentClasses[alignment as keyof typeof alignmentClasses]}
                         relative overflow-hidden rounded-[32px] border border-white/20 shadow-xl flex flex-col justify-center text-white
                       `}
-                      style={{
-                        padding: `${padding}px`,
-                        background:
-                          theme === "custom" ? customColor : undefined,
-                      }}
-                    >
-                      {theme !== "custom" && slide.imageUrl ?
-                        <>
-                          <img
-                            src={slide.imageUrl}
-                            alt={slide.title}
-                            className="absolute inset-0 h-full w-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-slate-950/45" />
-                        </>
-                      : null}
-                      <div className="relative z-10 flex h-full flex-col justify-center">
-                        <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 backdrop-blur self-start">
-                          {format}
-                        </span>
-                        <h3 className="mt-6 text-3xl font-bold tracking-tight">
-                          {slide.title}
-                        </h3>
-                        <p className="mt-4 text-base leading-7 text-white/90">
-                          {slide.content}
-                        </p>
+                        style={{
+                          padding: `${padding}px`,
+                          background: themeStyles.background,
+                        }}
+                      >
+                        <div
+                          className="absolute inset-0"
+                          style={{ background: themeStyles.overlay }}
+                        />
+                        <div className="relative z-10 flex h-full flex-col justify-center">
+                          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 backdrop-blur self-start">
+                            {format}
+                          </span>
+                          <h3 className="mt-6 text-3xl font-bold tracking-tight">
+                            {slide.title}
+                          </h3>
+                          <p className="mt-4 pb-6 text-base leading-7 text-white/90">
+                            {slide.content}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between px-2 text-slate-500">
+                        <span>♡</span>
+                        <span>💬</span>
+                        <span>↗</span>
+                        <span>🔖</span>
                       </div>
                     </div>
-
-                    <div className="mt-4 flex items-center justify-between px-2 text-slate-500">
-                      <span>♡</span>
-                      <span>💬</span>
-                      <span>↗</span>
-                      <span>🔖</span>
-                    </div>
-                  </div>
-                ))
-                  : slides.map((slide, index) => (
+                  ))
+                : slides.map((slide, index) => (
                     <div
                       key={index}
                       data-slide-index={index}
                       ref={(el) => {
                         slideRefs.current[index] = el;
                       }}
-                    className={`
+                      className={`
                       ${
                         format === "carousel" ? "w-full aspect-square"
                         : format === "story" ?
                           "w-full max-w-[360px] aspect-[9/16] self-center"
                         : "w-full aspect-square"
                       }
-                      ${themes[theme as keyof typeof themes]}
                       ${fontClasses[font as keyof typeof fontClasses]}
                       ${alignmentClasses[alignment as keyof typeof alignmentClasses]}
                       relative overflow-hidden rounded-[36px] border border-white/30 bg-white/20 shadow-xl backdrop-blur-lg flex flex-col justify-center text-white
                     `}
-                    style={{
-                      padding: `${padding}px`,
-                      background: theme === "custom" ? customColor : undefined,
-                    }}
-                  >
-                    {theme !== "custom" && slide.imageUrl ?
-                      <>
-                        <img
-                          src={slide.imageUrl}
-                          alt={slide.title}
-                          className="absolute inset-0 h-full w-full object-cover"
+                      style={{
+                        padding: `${padding}px`,
+                        background: themeStyles.background,
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{ background: themeStyles.overlay }}
+                      />
+                      <div className="relative z-10 flex h-full flex-col justify-between pb-6">
+                        <div className="flex w-full items-center justify-between">
+                          <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 backdrop-blur">
+                            Slide {index + 1}
+                          </span>
+                          <button
+                            onClick={() => regenerateSlide(index)}
+                            className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+
+                        <textarea
+                          rows={2}
+                          value={slide.title}
+                          onChange={(e) => {
+                            const updated = [...slides];
+                            updated[index].title = e.target.value;
+                            setSlides(updated);
+                          }}
+                          className="mt-4 w-full resize-none bg-transparent text-3xl font-bold leading-tight outline-none placeholder:text-white/70"
                         />
-                        <div className="absolute inset-0 bg-slate-950/45" />
-                      </>
-                    : null}
-                    <div className="relative z-10 flex h-full flex-col justify-center">
-                      <div className="flex w-full items-center justify-between">
-                        <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-white/90 backdrop-blur">
-                          Slide {index + 1}
-                        </span>
-                        <button
-                          onClick={() => regenerateSlide(index)}
-                          className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
-                        >
-                          Regenerate
-                        </button>
+
+                        <textarea
+                          value={slide.content}
+                          onChange={(e) => {
+                            const updated = [...slides];
+                            updated[index].content = e.target.value;
+                            setSlides(updated);
+                          }}
+                          className="mt-4 w-full flex-1 resize-none break-words bg-transparent text-base leading-7 outline-none placeholder:text-white/70"
+                        />
                       </div>
-
-                      <textarea
-                        rows={2}
-                        value={slide.title}
-                        onChange={(e) => {
-                          const updated = [...slides];
-                          updated[index].title = e.target.value;
-                          setSlides(updated);
-                        }}
-                        className="mt-6 w-full min-h-[4.5rem] resize-none bg-transparent text-3xl font-bold tracking-tight outline-none placeholder:text-white/70"
-                      />
-
-                      <textarea
-                        value={slide.content}
-                        onChange={(e) => {
-                          const updated = [...slides];
-                          updated[index].content = e.target.value;
-                          setSlides(updated);
-                        }}
-                        className="mt-4 w-full flex-1 resize-none break-words bg-transparent text-base leading-7 outline-none placeholder:text-white/70"
-                      />
                     </div>
-                  </div>
-                ))}
+                  ))
+                }
               </div>
-            )}
+            }
           </div>
         </section>
 
-        <aside className="h-full overflow-y-auto rounded-[28px] border border-white/30 bg-white/20 p-6 shadow-xl backdrop-blur-lg">
+        <aside className="h-full overflow-y-auto rounded-[28px] border border-white/30 bg-white/20 px-6 pt-6 pb-10 shadow-xl backdrop-blur-lg">
           <div className="rounded-[24px] bg-[linear-gradient(135deg,_#ffffff_0%,_#eff6ff_45%,_#fdf2f8_100%)] p-5 shadow-sm ring-1 ring-slate-100">
             <span className="rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white">
               Design
@@ -679,7 +796,7 @@ export default function Home() {
               Theme
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              {Object.keys(themes).map((t) => (
+              {themeOptions.map((t) => (
                 <button
                   key={t}
                   onClick={() => setTheme(t)}
@@ -690,7 +807,7 @@ export default function Home() {
                     : t === "orange" ? "bg-orange-500"
                     : t === "custom" ? "bg-pink-500"
                     : "bg-slate-900"
-                  }`}
+                  } ${theme === t ? "ring-2 ring-slate-900 ring-offset-2 ring-offset-white" : ""}`}
                 >
                   {t}
                 </button>

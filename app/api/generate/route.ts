@@ -1,5 +1,12 @@
 export async function POST(req: Request) {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      return Response.json(
+        { error: "Missing GROQ_API_KEY configuration" },
+        { status: 500 },
+      );
+    }
+
     const { idea, format, hook } = await req.json();
 
     const slideCount = format === "post" ? 1 : format === "story" ? 3 : 5;
@@ -55,10 +62,25 @@ Return JSON array with ${slideCount} slide${slideCount === 1 ? "" : "s"}:
     );
 
     const data = await response.json();
+
+    if (!response.ok) {
+      const message =
+        data?.error?.message || data?.error || "Groq request failed";
+      return Response.json({ error: message }, { status: response.status });
+    }
+
     const text: string = data.choices?.[0]?.message?.content || "";
+
+    if (!text) {
+      return Response.json(
+        { error: "Groq returned an empty generation response" },
+        { status: 502 },
+      );
+    }
+
     return Response.json({ result: text });
   } catch (error) {
     console.error(error);
-    return Response.json({ error: "Something went wrong" });
+    return Response.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

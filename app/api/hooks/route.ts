@@ -1,5 +1,12 @@
 export async function POST(req: Request) {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      return Response.json(
+        { error: "Missing GROQ_API_KEY configuration" },
+        { status: 500 },
+      );
+    }
+
     const { idea } = await req.json();
 
     const prompt = `
@@ -35,12 +42,25 @@ Format:
 
     const data = await response.json();
 
+    if (!response.ok) {
+      const message =
+        data?.error?.message || data?.error || "Groq request failed";
+      return Response.json({ error: message }, { status: response.status });
+    }
+
     const text = data.choices?.[0]?.message?.content || "";
+
+    if (!text) {
+      return Response.json(
+        { error: "Groq returned an empty hook response" },
+        { status: 502 },
+      );
+    }
 
     return Response.json({ result: text });
 
   } catch (error) {
     console.error(error);
-    return Response.json({ error: "Failed to generate hooks" });
+    return Response.json({ error: "Failed to generate hooks" }, { status: 500 });
   }
 }

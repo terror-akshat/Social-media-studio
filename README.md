@@ -1,6 +1,6 @@
 # Social Media Studio
 
-Social Media Studio is a Next.js app for turning a rough content idea into ready-to-post social media creatives. I picked the problem of "content creation takes too long for non-designers" and built a tool that helps users go from topic to editable carousel/post/story slides with AI-assisted hooks, copy, visuals, and export.
+Social Media Studio is a Next.js app for turning a rough content idea into ready-to-post social media creatives. I picked the problem of "content creation takes too long for non-designers" and built a tool that helps users go from topic to editable carousel/post/story slides with AI-assisted hooks, copy, styling controls, and export.
 
 ## What I Built
 
@@ -12,10 +12,11 @@ The app lets a user:
 - generate AI-written slides
 - regenerate an individual slide if one part is weak
 - customize theme, font, alignment, and padding
+- apply solid or gradient theme treatments without background images
 - preview the result in a social-style frame
 - export the final slides as a ZIP of PNG images
 
-The frontend is built with Next.js App Router and React. The backend uses simple API routes to call LLM/image services and keep the UI flow clean.
+The frontend is built with Next.js App Router and React. The backend uses simple API routes to call the LLM, validate failures, and keep the UI flow clean.
 
 ## High-Level Design
 
@@ -79,16 +80,14 @@ flowchart TB
         H[Hooks API]
         G[Generate API]
         R[Regenerate API]
-        I[Slide image API]
     end
 
     subgraph F3[External Services]
         LLM[Groq LLM API]
-        IMG[Image provider]
     end
 
     subgraph F4[Export Layer]
-        EXP[Client-side export]
+        EXP[Client-side export cards]
         ZIP[ZIP bundle output]
         EXP --> ZIP
     end
@@ -97,13 +96,11 @@ flowchart TB
     ED --> H
     ED --> G
     ED --> R
-    ED --> I
     ED --> EXP
 
     H --> LLM
     G --> LLM
     R --> LLM
-    I --> IMG
 
     classDef actor fill:#fff7ed,stroke:#f97316,color:#7c2d12,stroke-width:2px;
     classDef frontend fill:#eff6ff,stroke:#2563eb,color:#1e3a8a,stroke-width:2px;
@@ -114,8 +111,8 @@ flowchart TB
 
     class U actor;
     class UI,ED frontend;
-    class H,G,R,I api;
-    class LLM,IMG external;
+    class H,G,R api;
+    class LLM external;
     class EXP,ZIP output;
     class F1,F2,F3,F4 group;
 ```
@@ -123,11 +120,11 @@ flowchart TB
 ### HLD Notes
 
 - `Input layer`: the user provides a topic, selects a content format, and optionally chooses an AI-generated hook.
-- `Generation layer`: API routes call the LLM to produce hooks, slide copy, and regenerated slide variants.
+- `Generation layer`: API routes call the LLM to produce hooks, slide copy, and regenerated slide variants, and return clearer errors when the provider fails.
 - `Story engine`: slide count and content structure are controlled by prompt logic based on format like carousel, post, or story.
-- `Enhancement layer`: each slide gets a visual prompt and an image source, with a fallback SVG so rendering never fully breaks.
+- `Styling layer`: each slide uses theme-driven gradients, overlay treatments, font choices, alignment, and spacing controls directly in the UI.
 - `Editing layer`: the user can refine titles, body copy, theme, font, alignment, spacing, and preview mode directly in the UI.
-- `Export layer`: slides are captured client-side and bundled into downloadable image assets.
+- `Export layer`: slides are rendered into simplified client-side export cards and bundled into downloadable image assets.
 
 
 ## Problem Chosen
@@ -154,17 +151,23 @@ I intentionally made the generated content editable in the UI. That keeps the us
 
 Tradeoff: this adds more state management and UI complexity, but it makes the tool much more practical.
 
-### 4. Image fallback handling
+### 4. Theme-first slide styling
 
-Slide visuals are fetched through an API route, and if image generation fails the app returns a fallback SVG. That keeps the product usable even when the external image provider is unavailable.
+Slides are now styled with gradients, overlays, type, alignment, and spacing controls instead of generated background images. That makes the editor more predictable and avoids visual/export issues caused by external media.
 
-Tradeoff: fallback visuals are reliable, but less rich than fully generated imagery.
+Tradeoff: the slides are cleaner and more reliable, but less illustration-heavy than a media-driven design workflow.
 
 ### 5. Client-side export with `html2canvas` and `jszip`
 
-I used client-side rendering/export so users can download slides immediately without waiting on a server-side rendering pipeline.
+I used client-side rendering/export so users can download slides immediately without waiting on a server-side rendering pipeline. The export path uses simplified card markup to keep ZIP generation stable.
 
 Tradeoff: this is simple and fast to ship, but export quality and consistency can vary more than a dedicated server-side image renderer.
+
+### 6. Local font setup and defensive API errors
+
+The app uses a local font stack instead of build-time Google font fetching, and the Groq routes now return clearer HTTP errors for missing keys, upstream failures, and empty responses.
+
+Tradeoff: this improves production reliability, but the API layer is still intentionally lightweight and not yet schema-enforced end-to-end.
 
 ## Interesting Challenges And How I Solved Them
 
@@ -176,9 +179,9 @@ One challenge was that LLM responses are not always perfectly formatted, even wh
 
 Sometimes model output repeats the topic name or prefixes like "Slide 1". I added text sanitization helpers to remove noisy prefixes so the final slides feel more polished.
 
-### Avoiding total failure when image generation breaks
+### Keeping export reliable across themes
 
-External image APIs are helpful but not guaranteed. Instead of letting the slide fail visually, I added a fallback SVG response so every slide still renders and exports.
+Client-side canvas export can be sensitive to complex CSS. I shifted the slide styling toward export-safe gradients and use a simplified export card structure so ZIP generation is more stable.
 
 ### Supporting multiple content formats in one flow
 
@@ -191,7 +194,7 @@ Carousels, stories, and single posts need different slide counts and aspect rati
 - support brand kits with reusable fonts, colors, and logos
 - improve export quality with server-side rendering for more consistent outputs
 - add drag-and-drop slide reordering
-- add richer editing controls like font size, overlay intensity, and image repositioning
+- add richer editing controls like font size, overlay intensity, and slide templates
 - add usage analytics and prompt/version tracking for better iteration
 - improve prompt quality per content niche instead of using a broad generic prompt
 
@@ -204,7 +207,7 @@ social-media-studio/
 |   |   |-- generate/route.ts      # Generates slide content
 |   |   |-- hooks/route.ts         # Generates hook options
 |   |   |-- regenerate/route.ts    # Regenerates one slide
-|   |   `-- slide-image/route.ts   # Fetches or falls back for slide images
+|   |   `-- slide-image/route.ts   # Legacy image route, currently unused by the UI
 |   |-- favicon.ico
 |   |-- globals.css                # Global styles
 |   |-- layout.tsx                 # Root layout
@@ -235,4 +238,4 @@ Then open `http://localhost:3000`.
 
 ## Summary
 
-This project is a compact AI-assisted content studio that combines ideation, copy generation, visual generation, customization, preview, and export in one interface. The main goal was to reduce the friction between "I have an idea" and "I have something I can post."
+This project is a compact AI-assisted content studio that combines ideation, copy generation, styling, customization, preview, and export in one interface. The main goal was to reduce the friction between "I have an idea" and "I have something I can post."
