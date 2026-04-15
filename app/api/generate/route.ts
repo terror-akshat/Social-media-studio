@@ -1,3 +1,5 @@
+import { parseAIJSON, validateSlides } from "../_lib/ai";
+
 export async function POST(req: Request) {
   try {
     if (!process.env.GROQ_API_KEY) {
@@ -7,7 +9,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const { idea, format, hook } = await req.json();
+    const {
+      idea,
+      format,
+      hook,
+      tone = "professional",
+      audience = "creators",
+      ctaStyle = "soft",
+      layoutTemplate = "balanced",
+    } = await req.json();
 
     const slideCount = format === "post" ? 1 : format === "story" ? 3 : 5;
     const formatName = format === "post" ? "post" : format === "story" ? "story" : "carousel";
@@ -19,6 +29,10 @@ Create a HIGH-ENGAGEMENT Instagram ${formatName}.
 
 Topic: ${idea}
 Hook: ${hook}
+Tone: ${tone}
+Audience: ${audience}
+CTA style: ${ctaStyle}
+Layout template: ${layoutTemplate}
 
 Follow this structure:
 
@@ -33,7 +47,8 @@ Rules:
 - Each slide must feel connected
 - Conversational tone
 - Short, punchy lines
-- Parent-friendly language
+- Match the requested tone and audience
+- End with the requested CTA style when appropriate
 
 Return JSON array with ${slideCount} slide${slideCount === 1 ? "" : "s"}:
 [
@@ -78,7 +93,17 @@ Return JSON array with ${slideCount} slide${slideCount === 1 ? "" : "s"}:
       );
     }
 
-    return Response.json({ result: text });
+    const parsed = parseAIJSON(text);
+    const slides = validateSlides(parsed, slideCount);
+
+    if (!slides || slides.length !== slideCount) {
+      return Response.json(
+        { error: `Groq returned invalid slide data for ${formatName}` },
+        { status: 502 },
+      );
+    }
+
+    return Response.json({ slides });
   } catch (error) {
     console.error(error);
     return Response.json({ error: "Something went wrong" }, { status: 500 });

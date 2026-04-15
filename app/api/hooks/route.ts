@@ -1,3 +1,5 @@
+import { parseAIJSON, validateHooks } from "../_lib/ai";
+
 export async function POST(req: Request) {
   try {
     if (!process.env.GROQ_API_KEY) {
@@ -57,7 +59,17 @@ Format:
       );
     }
 
-    return Response.json({ result: text });
+    const parsed = parseAIJSON(text);
+    const hooks = validateHooks(parsed);
+
+    if (!hooks) {
+      return Response.json(
+        { error: "Groq returned invalid hooks data" },
+        { status: 502 },
+      );
+    }
+
+    return Response.json({ hooks });
 
   } catch (error) {
     console.error(error);

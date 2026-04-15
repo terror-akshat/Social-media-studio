@@ -1,4 +1,4 @@
-import { parseAIJSON, validateSingleSlide } from "../_lib/ai";
+import { parseAIJSON, validateCaptionResult } from "../_lib/ai";
 
 export async function POST(req: Request) {
   try {
@@ -9,30 +9,50 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
     const {
       idea,
-      index,
       format,
       tone = "professional",
       audience = "creators",
       ctaStyle = "soft",
-      layoutTemplate = "balanced",
-    } = body;
+      slides = [],
+    } = await req.json();
+
+    const slidesSummary = Array.isArray(slides)
+      ? slides
+          .map((slide, index) =>
+            slide && typeof slide === "object"
+              ? `Slide ${index + 1}: ${(slide as { title?: string }).title || ""} | ${(slide as { content?: string }).content || ""}`
+              : null,
+          )
+          .filter(Boolean)
+          .join("\n")
+      : "";
 
     const prompt = `
-Generate ONE improved slide for this topic:
+Create one social media caption and a hashtag set.
 
 Topic: ${idea}
-Slide number: ${index + 1}
 Format: ${format}
 Tone: ${tone}
 Audience: ${audience}
 CTA style: ${ctaStyle}
-Layout template: ${layoutTemplate}
 
-Return ONLY JSON:
-{ "title": "", "content": "" }
+Slides:
+${slidesSummary}
+
+Rules:
+- Caption should feel natural and ready to post
+- Keep it concise but useful
+- Match the requested tone and audience
+- Include a CTA that matches the requested CTA style
+- Return ONLY JSON
+
+Format:
+{
+  "caption": "",
+  "hashtags": ["#tag1", "#tag2", "#tag3"]
+}
 `;
 
     const response = await fetch(
@@ -47,7 +67,7 @@ Return ONLY JSON:
           model: "llama-3.1-8b-instant",
           messages: [{ role: "user", content: prompt }],
         }),
-      }
+      },
     );
 
     const data = await response.json();
@@ -58,28 +78,28 @@ Return ONLY JSON:
       return Response.json({ error: message }, { status: response.status });
     }
 
-    const text = data.choices?.[0]?.message?.content || "";
+    const text: string = data.choices?.[0]?.message?.content || "";
 
     if (!text) {
       return Response.json(
-        { error: "Groq returned an empty regenerated slide" },
+        { error: "Groq returned an empty caption response" },
         { status: 502 },
       );
     }
 
     const parsed = parseAIJSON(text);
-    const slide = validateSingleSlide(parsed);
+    const result = validateCaptionResult(parsed);
 
-    if (!slide) {
+    if (!result) {
       return Response.json(
-        { error: "Groq returned invalid regenerated slide data" },
+        { error: "Groq returned invalid caption data" },
         { status: 502 },
       );
     }
 
-    return Response.json({ slide });
+    return Response.json(result);
   } catch (error) {
     console.error(error);
-    return Response.json({ error: "Failed to regenerate" }, { status: 500 });
+    return Response.json({ error: "Failed to generate caption" }, { status: 500 });
   }
 }

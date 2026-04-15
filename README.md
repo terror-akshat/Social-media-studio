@@ -207,7 +207,6 @@ social-media-studio/
 |   |   |-- generate/route.ts      # Generates slide content
 |   |   |-- hooks/route.ts         # Generates hook options
 |   |   |-- regenerate/route.ts    # Regenerates one slide
-|   |   `-- slide-image/route.ts   # Legacy image route, currently unused by the UI
 |   |-- favicon.ico
 |   |-- globals.css                # Global styles
 |   |-- layout.tsx                 # Root layout
