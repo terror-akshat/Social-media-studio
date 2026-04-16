@@ -23,6 +23,8 @@ Social Media Studio is a Next.js app for turning a rough content idea into ready
 
 ## What I Built
 
+![alt text](image.png)
+
 The app lets a user:
 
 - enter a topic or idea
@@ -34,6 +36,13 @@ The app lets a user:
 - apply solid or gradient theme treatments without background images
 - preview the result in a social-style frame
 - export the final slides as a ZIP of PNG images
+
+## UX Considerations
+
+- Fast generation with minimal waiting
+- Clean, distraction-free editing interface
+- Real-time preview for quick iteration
+- Export flow optimized for simplicity
 
 The frontend is built with Next.js App Router and React. The backend uses simple API routes to call the LLM, validate failures, and keep the UI flow clean.
 
